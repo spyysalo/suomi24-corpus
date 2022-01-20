@@ -80,17 +80,29 @@ def parse_attr_value(string):
     return attr_value
 
 
+UNESCAPE_SPACE_MAP = {
+    r'\n': '\n',
+    r'\t': '\t',
+    r'\s': ' ',
+    '\u00A0': ' ',    # non-breaking space
+    '\u2009': ' ',    # thin space
+}
+
+
 def unescape_space(string):
     orig, unescaped = string, []
     while string:
-        if string.startswith('\\s'):
-            unescaped.append(' ')
-            string = string[len('\\s'):]
-        elif string.startswith('\\n'):
-            unescaped.append('\n')
-            string = string[len('\\n'):]
-        else:
-            logging.warning(f'failed to unescape space: "{orig}"')
+        found = False
+        for k, v in UNESCAPE_SPACE_MAP.items():
+            if string.startswith(k):
+                unescaped.append(v)
+                string = string[len(k):]
+                found = True
+                break
+        if not found:
+            logging.warning(
+                f'failed to unescape space: "{orig}" '
+                f'({",".join(repr(c) for c in orig)})')
             break
     return ''.join(unescaped)
 
@@ -100,6 +112,23 @@ def unescape_text(string):
     string = string.replace('&gt;', '>')
     string = string.replace('&amp;', '&')
     return string
+
+
+def output_text(id_, textelem, strings, options):
+    string = ''.join(strings)
+    if options.jsonl:
+        data = {
+            'id': id_,
+            'text': string,
+            'meta': { 'sourcemeta': textelem.attrib },
+        }
+        print(json.dumps(data, sort_keys=True, ensure_ascii=False))
+    elif not options.tsv:
+        print('-' * 20, id_, '-' * 20)
+        print(string)
+    else:
+        encoded = json.dumps(string, ensure_ascii=False)
+        print(f'{id_}\t{encoded}')
 
 
 def vrt_to_text(fn, options):
@@ -115,20 +144,7 @@ def vrt_to_text(fn, options):
                 strings = []
             elif is_text_end_line(l):
                 assert textelem is not None
-                string = ''.join(strings)
-                if options.jsonl:
-                    data = {
-                        'id': id_,
-                        'text': string,
-                        'meta': { 'sourcemeta': textelem.attrib },
-                    }
-                    print(json.dumps(data, sort_keys=True, ensure_ascii=False))
-                elif not options.tsv:
-                    print('-' * 20, id_, '-' * 20)
-                    print(string)
-                else:
-                    encoded = json.dumps(string, ensure_ascii=False)
-                    print(f'{id_}\t{encoded}')
+                output_text(id_, textelem, strings, options)
                 id_, textelem, strings = None, None, None
             elif is_paragraph_start_line(l):
                 assert paraelem is None
