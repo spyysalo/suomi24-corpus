@@ -4,6 +4,7 @@
 # (http://urn.fi/urn:nbn:fi:lb-2017021506) to text and other formats.
 
 import sys
+import re
 import json
 import logging
 import xml.etree.ElementTree as ET
@@ -18,6 +19,7 @@ Word = namedtuple('Word', 'word ref lemma lemmacomp pos msd dephead deprel space
 
 def argparser():
     ap = ArgumentParser()
+    ap.add_argument('--include-quoted', default=False, action='store_true') 
     ap.add_argument('--jsonl', default=False, action='store_true') 
     ap.add_argument('--tsv', default=False, action='store_true')
     ap.add_argument('file', nargs='+')
@@ -107,27 +109,53 @@ def unescape_space(string):
     return ''.join(unescaped)
 
 
-def unescape_text(string):
-    string = string.replace('&lt;', '<')
-    string = string.replace('&gt;', '>')
-    string = string.replace('&amp;', '&')
-    return string
+def normalize_space(text):
+    text = re.sub(r'  +', ' ', text)
+    paragraphs = re.split(r'\n\n+', text)
+    paragraphs = [p for p in paragraphs if p and not p.isspace()]
+    paragraphs = [' '.join(p.split()) for p in paragraphs]
+    text = '\n\n'.join(paragraphs)
+    return text
+
+    
+def unescape_text(text):
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&amp;', '&')
+    return text
+
+
+TEXT_BY_COMMENT_ID = {}
 
 
 def output_text(id_, textelem, strings, options):
-    string = ''.join(strings)
+    text = ''.join(strings)
+    text = normalize_space(text)
+
+    if options.include_quoted:
+        # store current
+        comment_id = textelem.attrib['comment_id']
+        TEXT_BY_COMMENT_ID[comment_id] = text
+        quoted_id = textelem.attrib['quoted_comment_id']
+        if quoted_id != '0' and quoted_id in TEXT_BY_COMMENT_ID:
+            quoted_text = TEXT_BY_COMMENT_ID[quoted_id]
+            quoted_lines = quoted_text.split('\n')
+            quoted_lines = [f'> {l}' for l in quoted_lines]
+            quoted_text = '\n'.join(quoted_lines)
+            text = f'{quoted_text}\n\n{text}'
+        
     if options.jsonl:
         data = {
             'id': id_,
-            'text': string,
+            'text': text,
             'meta': { 'sourcemeta': textelem.attrib },
         }
         print(json.dumps(data, sort_keys=True, ensure_ascii=False))
     elif not options.tsv:
         print('-' * 20, id_, '-' * 20)
-        print(string)
+        print(text)
     else:
-        encoded = json.dumps(string, ensure_ascii=False)
+        encoded = json.dumps(text, ensure_ascii=False)
         print(f'{id_}\t{encoded}')
 
 
