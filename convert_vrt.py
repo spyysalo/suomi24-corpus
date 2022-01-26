@@ -87,7 +87,17 @@ UNESCAPE_SPACE_MAP = {
     r'\t': '\t',
     r'\s': ' ',
     '\u00A0': ' ',    # non-breaking space
+    '\u2002': ' ',    # en space
+    '\u2003': ' ',    # em space
+    '\u2004': ' ',    # three per em space
+    '\u2005': ' ',    # four per em space
+    '\u2006': ' ',    # six per em space
+    '\u2007': ' ',    # figure space
+    '\u2008': ' ',    # punctuation space
     '\u2009': ' ',    # thin space
+    '\u200A': ' ',    # hairspace
+    '\u202F': ' ',    # narrow non-breaking space
+    '\u3000': ' ',    # ideographic space
 }
 
 
